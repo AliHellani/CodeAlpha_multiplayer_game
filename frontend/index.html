@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="styles.css" />
+    <title>Puzzle Game</title>
+  </head>
+  <body>
+    <div class="login-container">
+      <h2>PUZZLE</h2>
+
+      <form id="loginForm">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required />
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required />
+
+        <button type="submit">Login</button>
+      </form>
+
+      <div class="register-link">
+        Don't have an Account?
+        <a href="./components/register/register.html">Register</a>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async function (event) {
+          event.preventDefault();
+
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+
+          try {
+            const response = await fetch("/login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              localStorage.setItem("token", data.token);
+              localStorage.setItem("user", JSON.stringify(data.user));
+              window.location.href = "./components/puzzle_game/game.html";
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: "Login Failed!",
+                text: result.error,
+                confirmButtonText: "OK",
+              });
+            }
+          } catch (error) {
+            console.error("Error:", error);
+            Swal.fire({
+              icon: "error",
+              title: "Error!",
+              text: "An error occurred while logging in.",
+              confirmButtonText: "OK",
+            });
+          }
+        });
+    </script>
+  </body>
+</html>

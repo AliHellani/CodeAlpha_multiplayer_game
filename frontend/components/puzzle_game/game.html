@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="game.css" />
+    <title>Puzzle Game</title>
+  </head>
+  <body>
+    <header>
+      <h1>Puzzle Game</h1>
+      <form id="puzzleForm" method="post" enctype="multipart/form-data">
+        <input
+          type="text"
+          id="puzzle_name"
+          name="puzzle_name"
+          placeholder="Enter puzzle name"
+          required
+        />
+        <label for="puzzleImage">Choose Image</label>
+        <input
+          type="file"
+          id="puzzleImage"
+          name="puzzleImage"
+          accept="image/jpg, image/png"
+          required
+        />
+        <button type="submit">Upload Image</button>
+        <button id="logoutBtn" type="button">Logout</button>
+      </form>
+    </header>
+
+    <div id="difficulty-container">
+      <label for="difficulty">Difficulty</label>
+      <input type="range" min="2" max="16" value="4" id="difficulty" />
+      <button id="replayBtn" type="button">Replay</button>
+    </div>
+
+    <div id="content">
+      <canvas id="canvas"></canvas>
+      <img id="mainImage" src="" />
+    </div>
+
+    <script>
+      const PUZZLE_HOVER_TINT = "#009900";
+      const img = new Image();
+      const canvas = document.querySelector("#canvas");
+      const stage = canvas.getContext("2d");
+      let difficulty = 4;
+      let pieces;
+      let puzzleWidth;
+      let puzzleHeight;
+      let pieceWidth;
+      let pieceHeight;
+      let currentPiece;
+      let currentDropPiece;
+      let mouse;
+      let socket;
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        const token = localStorage.getItem("token");
+
+        function loadImage(file) {
+          const reader = new FileReader();
+          reader.onload = function (event) {
+            img.onload = function () {
+              onImage();
+            };
+            img.src = event.target.result;
+            document.getElementById("mainImage").src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        document
+          .getElementById("puzzleForm")
+          .addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById("puzzleImage");
+            const file = fileInput.files[0];
+            const puzzleName = document.getElementById("puzzle_name").value;
+
+            const user = JSON.parse(localStorage.getItem("user"));
+            const userId = user.user_id;
+
+            const formData = new FormData();
+            formData.append("puzzleImage", file);
+            formData.append("puzzle_name", puzzleName);
+            formData.append("user_id", userId);
+
+            try {
+              const response = await fetch("/createPuzzle", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                loadImage(file);
+              } else {
+                const error = await response.json();
+                Swal.fire("Error", error.error, "error");
+              }
+            } catch (error) {
+              Swal.fire("Error", error.message, "error");
+            }
+          });
+
+        document
+          .getElementById("puzzleImage")
+          .addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            loadImage(file);
+          });
+
+        document.getElementById("replayBtn").addEventListener("click", () => {
+          gameOver();
+        });
+
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+          logout();
+        });
+
+        img.addEventListener("load", onImage, false);
+
+        // WebSocket connection
+        socket = new WebSocket("ws://localhost:3002");
+
+        socket.addEventListener("open", () => {
+          console.log("WebSocket connected");
+        });
+
+        socket.addEventListener("message", (event) => {
+          console.log("Message from server ", event.data);
+          if (event.data === "Game Over") {
+            handleGameOverFromServer();
+          }
+        });
+      });
+
+      function gameOver() {
+        sendMessage("Game Over");
+        document.onpointerdown = null;
+        document.onpointermove = null;
+        document.onpointerup = null;
+        initPuzzle();
+      }
+
+      function initPuzzle() {
+        pieces = [];
+        mouse = { x: 0, y: 0 };
+        currentPiece = null;
+        currentDropPiece = null;
+        stage.drawImage(
+          img,
+          0,
+          0,
+          puzzleWidth,
+          puzzleHeight,
+          0,
+          0,
+          puzzleWidth,
+          puzzleHeight
+        );
+        createTitle("Click to Start Puzzle");
+        buildPieces();
+      }
+
+      function setCanvas() {
+        canvas.width = puzzleWidth;
+        canvas.height = puzzleHeight;
+      }
+
+      function onImage() {
+        pieceWidth = Math.floor(img.width / difficulty);
+        pieceHeight = Math.floor(img.height / difficulty);
+        puzzleWidth = pieceWidth * difficulty;
+        puzzleHeight = pieceHeight * difficulty;
+        setCanvas();
+        initPuzzle();
+      }
+
+      function createTitle(msg) {
+        stage.fillStyle = "#000000";
+        stage.globalAlpha = 0.4;
+        stage.fillRect(100, puzzleHeight - 40, puzzleWidth - 200, 40);
+        stage.fillStyle = "#FFFFFF";
+        stage.globalAlpha = 1;
+        stage.textAlign = "center";
+        stage.textBaseline = "middle";
+        stage.font = "20px Arial";
+        stage.fillText(msg, puzzleWidth / 2, puzzleHeight - 20);
+      }
+
+      function buildPieces() {
+        let xPos = 0;
+        let yPos = 0;
+        for (let i = 0; i < difficulty * difficulty; i++) {
+          const piece = { sx: xPos, sy: yPos };
+          pieces.push(piece);
+          xPos += pieceWidth;
+          if (xPos >= puzzleWidth) {
+            xPos = 0;
+            yPos += pieceHeight;
+          }
+        }
+        document.onpointerdown = shufflePuzzle;
+      }
+
+      function shufflePuzzle() {
+        pieces = shuffleArray(pieces);
+        stage.clearRect(0, 0, puzzleWidth, puzzleHeight);
+        let xPos = 0;
+        let yPos = 0;
+        for (const piece of pieces) {
+          piece.xPos = xPos;
+          piece.yPos = yPos;
+          stage.drawImage(
+            img,
+            piece.sx,
+            piece.sy,
+            pieceWidth,
+            pieceHeight,
+            xPos,
+            yPos,
+            pieceWidth,
+            pieceHeight
+          );
+          stage.strokeRect(xPos, yPos, pieceWidth, pieceHeight);
+          xPos += pieceWidth;
+          if (xPos >= puzzleWidth) {
+            xPos = 0;
+            yPos += pieceHeight;
+          }
+        }
+        document.onpointerdown = onPuzzleClick;
+      }
+
+      function checkPieceClicked() {
+        for (const piece of pieces) {
+          if (
+            mouse.x < piece.xPos ||
+            mouse.x > piece.xPos + pieceWidth ||
+            mouse.y < piece.yPos ||
+            mouse.y > piece.yPos + pieceHeight
+          ) {
+          } else {
+            return piece;
+          }
+        }
+        return null;
+      }
+
+      function updatePuzzle(e) {
+        currentDropPiece = null;
+        mouse.x =
+          e.layerX || e.layerX === 0
+            ? e.layerX - canvas.offsetLeft
+            : e.offsetX - canvas.offsetLeft;
+        mouse.y =
+          e.layerY || e.layerY === 0
+            ? e.layerY - canvas.offsetTop
+            : e.offsetY - canvas.offsetTop;
+        stage.clearRect(0, 0, puzzleWidth, puzzleHeight);
+        for (const piece of pieces) {
+          if (piece === currentPiece) continue;
+          stage.drawImage(
+            img,
+            piece.sx,
+            piece.sy,
+            pieceWidth,
+            pieceHeight,
+            piece.xPos,
+            piece.yPos,
+            pieceWidth,
+            pieceHeight
+          );
+          stage.strokeRect(piece.xPos, piece.yPos, pieceWidth, pieceHeight);
+          if (
+            !currentDropPiece &&
+            mouse.x > piece.xPos &&
+            mouse.x < piece.xPos + pieceWidth &&
+            mouse.y > piece.yPos &&
+            mouse.y < piece.yPos + pieceHeight
+          ) {
+            currentDropPiece = piece;
+            stage.save();
+            stage.globalAlpha = 0.4;
+            stage.fillStyle = PUZZLE_HOVER_TINT;
+            stage.fillRect(
+              currentDropPiece.xPos,
+              currentDropPiece.yPos,
+              pieceWidth,
+              pieceHeight
+            );
+            stage.restore();
+          }
+        }
+        stage.save();
+        stage.globalAlpha = 0.6;
+        stage.drawImage(
+          img,
+          currentPiece.sx,
+          currentPiece.sy,
+          pieceWidth,
+          pieceHeight,
+          mouse.x - pieceWidth / 2,
+          mouse.y - pieceHeight / 2,
+          pieceWidth,
+          pieceHeight
+        );
+        stage.restore();
+        stage.strokeRect(
+          mouse.x - pieceWidth / 2,
+          mouse.y - pieceHeight / 2,
+          pieceWidth,
+          pieceHeight
+        );
+      }
+
+      function onPuzzleClick(e) {
+        mouse.x =
+          e.layerX || e.layerX === 0
+            ? e.layerX - canvas.offsetLeft
+            : e.offsetX - canvas.offsetLeft;
+        mouse.y =
+          e.layerY || e.layerY === 0
+            ? e.layerY - canvas.offsetTop
+            : e.offsetY - canvas.offsetTop;
+        currentPiece = checkPieceClicked();
+        if (currentPiece !== null) {
+          stage.clearRect(
+            currentPiece.xPos,
+            currentPiece.yPos,
+            pieceWidth,
+            pieceHeight
+          );
+          stage.save();
+          stage.globalAlpha = 0.9;
+          stage.drawImage(
+            img,
+            currentPiece.sx,
+            currentPiece.sy,
+            pieceWidth,
+            pieceHeight,
+            mouse.x - pieceWidth / 2,
+            mouse.y - pieceHeight / 2,
+            pieceWidth,
+            pieceHeight
+          );
+          stage.restore();
+          document.onpointermove = updatePuzzle;
+          document.onpointerup = pieceDropped;
+        }
+      }
+
+      function pieceDropped(e) {
+        document.onpointermove = null;
+        document.onpointerup = null;
+        if (currentDropPiece !== null) {
+          const tmp = { xPos: currentPiece.xPos, yPos: currentPiece.yPos };
+          currentPiece.xPos = currentDropPiece.xPos;
+          currentPiece.yPos = currentDropPiece.yPos;
+          currentDropPiece.xPos = tmp.xPos;
+          currentDropPiece.yPos = tmp.yPos;
+        }
+        resetPuzzleAndCheckWin();
+      }
+
+      function resetPuzzleAndCheckWin() {
+        stage.clearRect(0, 0, puzzleWidth, puzzleHeight);
+        let gameWin = true;
+        for (const piece of pieces) {
+          stage.drawImage(
+            img,
+            piece.sx,
+            piece.sy,
+            pieceWidth,
+            pieceHeight,
+            piece.xPos,
+            piece.yPos,
+            pieceWidth,
+            pieceHeight
+          );
+          stage.strokeRect(piece.xPos, piece.yPos, pieceWidth, pieceHeight);
+          if (piece.xPos !== piece.sx || piece.yPos !== piece.sy) {
+            gameWin = false;
+          }
+        }
+        if (gameWin) {
+          setTimeout(() => {
+            Swal.fire({
+              title: "Congratulations!",
+              text: "You solved the puzzle!",
+              icon: "success",
+              confirmButtonText: "Try Again",
+            }).then(() => {
+              gameOver();
+            });
+          }, 500);
+        }
+      }
+
+      function shuffleArray(o) {
+        for (
+          let j, x, i = o.length;
+          i;
+          j = parseInt(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x
+        );
+        return o;
+      }
+
+      function updateDifficulty(e) {
+        difficulty = e.target.value;
+        pieceWidth = Math.floor(img.width / difficulty);
+        pieceHeight = Math.floor(img.height / difficulty);
+        puzzleWidth = pieceWidth * difficulty;
+        puzzleHeight = pieceHeight * difficulty;
+        gameOver();
+      }
+
+      document.querySelector("#difficulty").oninput = updateDifficulty;
+
+      function sendMessage(message) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(message);
+        } else {
+          console.error("WebSocket not open");
+        }
+      }
+
+      function logout() {
+        localStorage.removeItem("token");
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        }
+
+        window.location.href = "../../index.html";
+      }
+    </script>
+  </body>
+</html>

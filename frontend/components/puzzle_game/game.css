@@ -1,0 +1,105 @@
+body {
+  height: 100vh;
+  margin: 0;
+  background-color: #f0f0f0;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  background-color: #333;
+  color: white;
+  text-align: center;
+  width: 100%;
+  padding: 20px 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 2em;
+  margin-bottom: 10px;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+form input[type="text"],
+form input[type="file"],
+form button {
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+form input[type="text"] {
+  width: 200px;
+}
+
+form input[type="file"] {
+  display: none;
+}
+
+form label {
+  font-size: 14px;
+  background-color: #007bff;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+form label:hover {
+  background-color: #0056b3;
+}
+
+button {
+  cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 14px;
+  border-radius: 5px;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+#logoutBtn {
+  background-color: #dc3545;
+}
+
+#logoutBtn:hover {
+  background-color: #c82333;
+}
+
+#difficulty-container {
+  margin: 20px 0;
+  text-align: center;
+}
+
+#content {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+#canvas {
+  border: 1px solid black;
+  max-width: 78%;
+  max-height: 80vh;
+}
+
+#mainImage {
+  max-width: 80%;
+  max-height: 80vh;
+}

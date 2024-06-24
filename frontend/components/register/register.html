@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="./register.css" />
+    <title>Puzzle Game</title>
+  </head>
+  <body>
+    <div class="register-container">
+      <h2>PUZZLE</h2>
+
+      <form id="registerForm">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required />
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required />
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required />
+
+        <button type="submit">Register</button>
+      </form>
+
+      <div class="register-link">
+        Already have an account?
+        <a href="../../index.html">Log In</a>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("registerForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const formData = new FormData(
+            document.getElementById("registerForm")
+          );
+
+          try {
+            const response = await fetch("/register", {
+              method: "POST",
+              body: formData,
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+              Swal.fire({
+                icon: "success",
+                title: "Success!",
+                text: data.message,
+                confirmButtonText: "OK",
+              }).then(() => {
+                window.location.href = "../../index.html";
+              });
+
+              const user = {
+                username: formData.get("username"),
+                email: formData.get("email"),
+              };
+
+              localStorage.setItem("user", JSON.stringify(user));
+              localStorage.setItem("token", data.token);
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: "Error!",
+                text: data.error,
+                confirmButtonText: "OK",
+              });
+            }
+          } catch (error) {
+            console.error("Error during fetch:", error);
+            Swal.fire({
+              icon: "error",
+              title: "Error!",
+              text: "Something went wrong. Please try again later.",
+              confirmButtonText: "OK",
+            });
+          }
+        });
+    </script>
+  </body>
+</html>
